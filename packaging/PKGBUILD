@@ -1,0 +1,41 @@
+# Maintainer: filetrans contributors <noreply@github.com>
+# Arch Linux PKGBUILD for filetrans
+#
+# Install from AUR (once published):
+#   yay -S filetrans
+#   paru -S filetrans
+#
+# Or build manually:
+#   cd packaging && makepkg -si
+
+pkgname=filetrans
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Fast USB-C direct file transfer between laptops"
+arch=('x86_64' 'aarch64')
+url="https://github.com/YOUR_USERNAME/filetrans"
+license=('MIT')
+depends=()
+optdepends=('iproute2: USB gadget IP configuration on Linux')
+
+# Binary releases — update sha256sums after each release
+source_x86_64=("${pkgname}-${pkgver}-x86_64::${url}/releases/download/v${pkgver}/filetrans_linux_amd64")
+source_aarch64=("${pkgname}-${pkgver}-aarch64::${url}/releases/download/v${pkgver}/filetrans_linux_arm64")
+
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+    case "$CARCH" in
+        x86_64)  bin="${srcdir}/${pkgname}-${pkgver}-x86_64"  ;;
+        aarch64) bin="${srcdir}/${pkgname}-${pkgver}-aarch64" ;;
+    esac
+
+    install -Dm755 "${bin}" "${pkgdir}/usr/bin/${pkgname}"
+    install -Dm755 "${startdir}/../scripts/linux/setup_gadget.sh" \
+        "${pkgdir}/usr/share/${pkgname}/setup_gadget.sh"
+    install -Dm644 "${startdir}/../LICENSE" \
+        "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+    install -Dm644 "${startdir}/../README.md" \
+        "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+}

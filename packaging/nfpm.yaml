@@ -1,0 +1,51 @@
+# nfpm package configuration
+# https://nfpm.goreleaser.com/configuration/
+#
+# Environment variables used (set before running nfpm):
+#   VERSION  — package version without leading "v"  (e.g. 0.1.0)
+#   ARCH     — nfpm arch string: amd64 | arm64
+#   GOARCH   — Go arch string:   amd64 | arm64  (used in binary filename)
+#   GITHUB_REPOSITORY — owner/repo (e.g. acme/filetrans)
+
+name: "filetrans"
+arch: "${ARCH}"
+platform: "linux"
+version: "${VERSION}"
+maintainer: "filetrans contributors <noreply@github.com>"
+description: |
+  Fast, direct file transfer between two laptops over a USB-C cable.
+  Supports chunked transfer with SHA-256 verification, resume on disconnect,
+  and automatic network fallback when USB is unavailable.
+homepage: "https://github.com/${GITHUB_REPOSITORY}"
+license: "MIT"
+section: "utils"
+priority: "optional"
+
+contents:
+  - src: "./dist/filetrans_linux_${GOARCH}"
+    dst: "/usr/bin/filetrans"
+    file_info:
+      mode: 0755
+
+  - src: "./scripts/linux/setup_gadget.sh"
+    dst: "/usr/share/filetrans/setup_gadget.sh"
+    file_info:
+      mode: 0755
+
+  - src: "./LICENSE"
+    dst: "/usr/share/doc/filetrans/copyright"
+
+  - src: "./README.md"
+    dst: "/usr/share/doc/filetrans/README.md"
+
+rpm:
+  group: Applications/System
+  compression: gzip
+  summary: Fast USB-C direct file transfer
+
+deb:
+  fields:
+    Bugs: "https://github.com/${GITHUB_REPOSITORY}/issues"
+
+archlinux:
+  packager: "filetrans contributors <noreply@github.com>"

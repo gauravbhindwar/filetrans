@@ -1,0 +1,3 @@
+#!/bin/sh
+# AppImage entry point — forwards all arguments to the filetrans binary.
+exec "$APPDIR/usr/bin/filetrans" "$@"

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=filetrans
+GenericName=File Transfer
+Comment=Fast USB-C direct file transfer between laptops
+Exec=filetrans
+Icon=filetrans
+Terminal=true
+Type=Application
+Categories=Utility;Network;FileTransfer;
+Keywords=usb;transfer;file;cable;
