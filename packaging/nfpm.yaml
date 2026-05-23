@@ -21,12 +21,12 @@ section: "utils"
 priority: "optional"
 
 contents:
-  - src: "../dist/filetrans_linux_${GOARCH}"
+  - src: "../dist/filetrans_linux_pkg"
     dst: "/usr/bin/filetrans"
     file_info:
       mode: 0755
 
-  - src: "../dist/filetrans-gui_linux_${GOARCH}"
+  - src: "../dist/filetrans-gui_linux_pkg"
     dst: "/usr/bin/filetrans-gui"
     file_info:
       mode: 0755

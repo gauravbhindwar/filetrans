@@ -121,6 +121,12 @@ jobs:
           echo "ARCH=${{ matrix.arch }}"                    >> "$GITHUB_ENV"
           echo "GOARCH=${{ matrix.goarch }}"                >> "$GITHUB_ENV"
 
+      - name: Stage binaries for nfpm
+        run: |
+          cp dist/filetrans_linux_${{ matrix.goarch }}     dist/filetrans_linux_pkg
+          cp dist/filetrans-gui_linux_${{ matrix.goarch }} dist/filetrans-gui_linux_pkg
+          chmod +x dist/filetrans_linux_pkg dist/filetrans-gui_linux_pkg
+
       - name: Build .deb
         run: cd packaging && nfpm package --config nfpm.yaml --packager deb --target ../dist/
 
