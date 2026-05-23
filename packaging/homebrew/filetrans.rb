@@ -1,7 +1,7 @@
 # Homebrew formula for filetrans
 #
 # To use this tap:
-#   brew tap YOUR_USERNAME/filetrans
+#   brew tap gauravbhindwar/filetrans
 #   brew install filetrans
 #
 # Or install from the formula file directly:
@@ -12,17 +12,17 @@
 
 class Filetrans < Formula
   desc "Fast USB-C direct file transfer between laptops"
-  homepage "https://github.com/YOUR_USERNAME/filetrans"
+  homepage "https://github.com/gauravbhindwar/filetrans"
   version "0.1.0"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/YOUR_USERNAME/filetrans/releases/download/v#{version}/filetrans_darwin_arm64"
+      url "https://github.com/gauravbhindwar/filetrans/releases/download/v#{version}/filetrans_darwin_arm64"
       sha256 "REPLACE_WITH_SHA256_OF_filetrans_darwin_arm64"
     end
     on_intel do
-      url "https://github.com/YOUR_USERNAME/filetrans/releases/download/v#{version}/filetrans_darwin_amd64"
+      url "https://github.com/gauravbhindwar/filetrans/releases/download/v#{version}/filetrans_darwin_amd64"
       sha256 "REPLACE_WITH_SHA256_OF_filetrans_darwin_amd64"
     end
   end

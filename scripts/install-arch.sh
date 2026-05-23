@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-REPO="YOUR_USERNAME/filetrans"
+REPO="gauravbhindwar/filetrans"
 INSTALL_DIR="/usr/local/bin"
 USE_PKGBUILD=false
 VERSION=""

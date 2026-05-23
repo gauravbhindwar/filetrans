@@ -2,7 +2,7 @@
 # filetrans universal installer
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/filetrans/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/gauravbhindwar/filetrans/main/scripts/install.sh | sh
 #   or
 #   sh install.sh [version]   e.g. sh install.sh v0.2.0
 #
@@ -12,7 +12,7 @@
 
 set -e
 
-REPO="YOUR_USERNAME/filetrans"
+REPO="gauravbhindwar/filetrans"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 BINARY="filetrans"
 
