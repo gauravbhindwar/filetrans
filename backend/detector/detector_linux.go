@@ -46,6 +46,28 @@ func (d *linuxDetector) Start(cfg Config) (<-chan InterfaceEvent, func(), error)
 		unix.Close(sock)
 	}
 
+	// Emit events for USB interfaces already up at startup.
+	go func() {
+		ifaces, _ := net.Interfaces()
+		for _, iface := range ifaces {
+			if iface.Flags&net.FlagUp == 0 {
+				continue
+			}
+			if !isUSBInterface(iface.Name, cfg) {
+				continue
+			}
+			addrs, _ := iface.Addrs()
+			var ip string
+			for _, a := range addrs {
+				if ipNet, ok := a.(*net.IPNet); ok && ipNet.IP.To4() != nil {
+					ip = ipNet.IP.String()
+					break
+				}
+			}
+			events <- InterfaceEvent{Name: iface.Name, Added: true, LinkLocal: ip}
+		}
+	}()
+
 	go func() {
 		defer close(events)
 		buf := make([]byte, 4096)

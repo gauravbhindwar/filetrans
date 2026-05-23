@@ -27,6 +27,13 @@ func (d *windowsDetector) Start(cfg Config) (<-chan InterfaceEvent, func(), erro
 		ticker := time.NewTicker(cfg.PollInterval)
 		defer ticker.Stop()
 
+		// Emit events for USB interfaces already connected at startup.
+		for name, ip := range known {
+			if isUSBAdapterName(name) || isWatchedName(name, cfg.WatchNames) {
+				events <- InterfaceEvent{Name: name, Added: true, LinkLocal: ip}
+			}
+		}
+
 		for {
 			select {
 			case <-stop:
@@ -37,7 +44,7 @@ func (d *windowsDetector) Start(cfg Config) (<-chan InterfaceEvent, func(), erro
 				// Detect added interfaces
 				for name, ip := range current {
 					if _, exists := known[name]; !exists {
-						if isUSBAdapterName(name) {
+						if isUSBAdapterName(name) || isWatchedName(name, cfg.WatchNames) {
 							events <- InterfaceEvent{Name: name, Added: true, LinkLocal: ip}
 						}
 					}
@@ -46,7 +53,7 @@ func (d *windowsDetector) Start(cfg Config) (<-chan InterfaceEvent, func(), erro
 				// Detect removed interfaces
 				for name := range known {
 					if _, exists := current[name]; !exists {
-						if isUSBAdapterName(name) {
+						if isUSBAdapterName(name) || isWatchedName(name, cfg.WatchNames) {
 							events <- InterfaceEvent{Name: name, Added: false}
 						}
 					}
@@ -103,6 +110,15 @@ func isUSBAdapterName(name string) bool {
 	keywords := []string{"rndis", "usb", "gadget", "linux"}
 	for _, kw := range keywords {
 		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func isWatchedName(name string, watchNames []string) bool {
+	for _, wn := range watchNames {
+		if strings.EqualFold(name, wn) {
 			return true
 		}
 	}
