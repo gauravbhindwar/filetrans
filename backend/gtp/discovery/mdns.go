@@ -34,7 +34,7 @@ type Peer struct {
 
 // Announce broadcasts this node's presence on the LAN until ctx is cancelled.
 func Announce(gtpPort int, deviceID string, stop <-chan struct{}) {
-	addr := fmt.Sprintf("%s:%d", mdnsGroup, mdnsPort)
+	addr := net.JoinHostPort(mdnsGroup, fmt.Sprintf("%d", mdnsPort))
 	conn, err := net.Dial("udp4", addr)
 	if err != nil {
 		return
@@ -73,7 +73,7 @@ func Scan(gtpPort int, deviceID string, timeout time.Duration) ([]Peer, error) {
 	joinMulticast(conn)
 
 	// Send our own announce so peers can hear us immediately.
-	maddr, _ := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", mdnsGroup, mdnsPort))
+	maddr, _ := net.ResolveUDPAddr("udp4", net.JoinHostPort(mdnsGroup, fmt.Sprintf("%d", mdnsPort)))
 	msg := fmt.Sprintf("GTP1 1.0 %d %s\n", gtpPort, deviceID)
 	conn.WriteToUDP([]byte(msg), maddr)
 

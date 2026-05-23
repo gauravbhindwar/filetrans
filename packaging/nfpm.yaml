@@ -1,29 +1,33 @@
-# nfpm package configuration
-# https://nfpm.goreleaser.com/configuration/
+# nfpm package configuration — https://nfpm.goreleaser.com/configuration/
 #
-# Environment variables used (set before running nfpm):
-#   VERSION  — package version without leading "v"  (e.g. 0.1.0)
-#   ARCH     — nfpm arch string: amd64 | arm64
-#   GOARCH   — Go arch string:   amd64 | arm64  (used in binary filename)
-#   GITHUB_REPOSITORY — owner/repo (e.g. acme/filetrans)
+# Required env vars (set in CI before running nfpm):
+#   VERSION           — version without "v"  e.g. 0.2.1
+#   ARCH              — nfpm arch string: amd64 | arm64
+#   GOARCH            — Go arch string:   amd64 | arm64
+#   GITHUB_REPOSITORY — owner/repo e.g. gauravbhindwar/filetrans
 
 name: "filetrans"
 arch: "${ARCH}"
 platform: "linux"
 version: "${VERSION}"
-maintainer: "filetrans contributors <noreply@github.com>"
+maintainer: "Gaurav Bhindwar <bhindwargaurav@gmail.com>"
 description: |
-  Fast, direct file transfer between two laptops over a USB-C cable.
-  Supports chunked transfer with SHA-256 verification, resume on disconnect,
-  and automatic network fallback when USB is unavailable.
+  Direct file transfer over USB-C cable or LAN. No cloud. No Wi-Fi required.
+  Powered by GauravTransfer Protocol (GTP/1.0) — a custom binary transport
+  with windowed chunk pipeline, mDNS peer discovery, and transfer resume.
 homepage: "https://github.com/${GITHUB_REPOSITORY}"
-license: "MIT"
+license: "GPL-3.0"
 section: "utils"
 priority: "optional"
 
 contents:
   - src: "./dist/filetrans_linux_${GOARCH}"
     dst: "/usr/bin/filetrans"
+    file_info:
+      mode: 0755
+
+  - src: "./dist/filetrans-gui_linux_${GOARCH}"
+    dst: "/usr/bin/filetrans-gui"
     file_info:
       mode: 0755
 
@@ -41,11 +45,11 @@ contents:
 rpm:
   group: Applications/System
   compression: gzip
-  summary: Fast USB-C direct file transfer
+  summary: "Direct file transfer — USB-C, LAN, GTP protocol"
 
 deb:
   fields:
     Bugs: "https://github.com/${GITHUB_REPOSITORY}/issues"
 
 archlinux:
-  packager: "filetrans contributors <noreply@github.com>"
+  packager: "Gaurav Bhindwar <noreply@github.com>"

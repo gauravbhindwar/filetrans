@@ -98,16 +98,42 @@ func detectLocalAndPeer() (localIP, peerIP string) {
 	return "192.168.7.2", "192.168.7.1"
 }
 
-func (s *AppState) snapshot() AppState {
+// StateSnapshot is a mutex-free copy of AppState for JSON broadcast.
+type StateSnapshot struct {
+	Phase           AppPhase                 `json:"phase"`
+	Role            string                   `json:"role"`
+	PeerIP          string                   `json:"peer_ip"`
+	LocalIP         string                   `json:"local_ip"`
+	SuggestedPeerIP string                   `json:"suggested_peer_ip"`
+	Port            int                      `json:"port"`
+	DownloadDir     string                   `json:"download_dir"`
+	Message         string                   `json:"message"`
+	SelectedFiles   []string                 `json:"selected_files"`
+	Files           map[string]*FileProgress `json:"files"`
+	SessionDone     bool                     `json:"session_done"`
+}
+
+func (s *AppState) snapshot() StateSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	cp := *s
-	cp.Files = make(map[string]*FileProgress, len(s.Files))
+	files := make(map[string]*FileProgress, len(s.Files))
 	for k, v := range s.Files {
 		fp := *v
-		cp.Files[k] = &fp
+		files[k] = &fp
 	}
-	return cp
+	return StateSnapshot{
+		Phase:           s.Phase,
+		Role:            s.Role,
+		PeerIP:          s.PeerIP,
+		LocalIP:         s.LocalIP,
+		SuggestedPeerIP: s.SuggestedPeerIP,
+		Port:            s.Port,
+		DownloadDir:     s.DownloadDir,
+		Message:         s.Message,
+		SelectedFiles:   append([]string(nil), s.SelectedFiles...),
+		Files:           files,
+		SessionDone:     s.SessionDone,
+	}
 }
 
 func (s *AppState) setPhase(phase AppPhase, msg string) {
