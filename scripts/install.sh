@@ -97,52 +97,69 @@ detect_os
 detect_arch
 resolve_version "$1"
 
-# Construct asset name
+# Construct asset names
 if [ "$OS" = "windows" ]; then
     ASSET="filetrans_${OS}_${ARCH}.exe"
+    ASSET_GUI="filetrans-gui_${OS}_${ARCH}.exe"
     DEST="${INSTALL_DIR}/filetrans.exe"
+    DEST_GUI="${INSTALL_DIR}/filetrans-gui.exe"
 else
     ASSET="filetrans_${OS}_${ARCH}"
+    ASSET_GUI="filetrans-gui_${OS}_${ARCH}"
     DEST="${INSTALL_DIR}/filetrans"
+    DEST_GUI="${INSTALL_DIR}/filetrans-gui"
 fi
 
 BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
-ASSET_URL="${BASE_URL}/${ASSET}"
 CHECKSUMS_URL="${BASE_URL}/checksums.txt"
 
-info "Downloading $ASSET ..."
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-download "$ASSET_URL"    "$TMP_DIR/$ASSET"
+info "Downloading $ASSET ..."
+download "${BASE_URL}/${ASSET}" "$TMP_DIR/$ASSET"
+
+info "Downloading $ASSET_GUI ..."
+download "${BASE_URL}/${ASSET_GUI}" "$TMP_DIR/$ASSET_GUI"
+
 download "$CHECKSUMS_URL" "$TMP_DIR/checksums.txt"
 
 # ── verify checksum ───────────────────────────────────────────────────────────
-info "Verifying checksum..."
+info "Verifying checksums..."
 cd "$TMP_DIR"
 if command -v sha256sum >/dev/null 2>&1; then
-    grep "$ASSET" checksums.txt | sha256sum -c -
+    grep "$ASSET$" checksums.txt | sha256sum -c -
+    grep "$ASSET_GUI$" checksums.txt | sha256sum -c -
 elif command -v shasum >/dev/null 2>&1; then
-    grep "$ASSET" checksums.txt | shasum -a 256 -c -
+    grep "$ASSET$" checksums.txt | shasum -a 256 -c -
+    grep "$ASSET_GUI$" checksums.txt | shasum -a 256 -c -
 else
     printf '\033[33mWARN:\033[0m sha256sum not found — skipping checksum verification\n'
 fi
 cd - >/dev/null
 
 # ── install ───────────────────────────────────────────────────────────────────
-info "Installing to $DEST ..."
-chmod +x "$TMP_DIR/$ASSET"
+install_file() {
+    local src="$1" dst="$2"
+    chmod +x "$src"
+    if [ -w "$INSTALL_DIR" ]; then
+        cp "$src" "$dst"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo cp "$src" "$dst"
+    else
+        die "Cannot write to $INSTALL_DIR. Re-run as root or set INSTALL_DIR to a writable path."
+    fi
+}
 
-if [ -w "$INSTALL_DIR" ]; then
-    cp "$TMP_DIR/$ASSET" "$DEST"
-elif command -v sudo >/dev/null 2>&1; then
-    sudo cp "$TMP_DIR/$ASSET" "$DEST"
-else
-    die "Cannot write to $INSTALL_DIR. Re-run as root or set INSTALL_DIR to a writable path."
-fi
+info "Installing to $INSTALL_DIR ..."
+install_file "$TMP_DIR/$ASSET"     "$DEST"
+install_file "$TMP_DIR/$ASSET_GUI" "$DEST_GUI"
 
 ok "filetrans $VERSION installed → $DEST"
+ok "filetrans-gui $VERSION installed → $DEST_GUI"
 printf '\nQuick start:\n'
-printf '  Linux (sender):  sudo filetrans --role=sender myfile.zip\n'
-printf '  Windows (recv):  filetrans --role=receiver\n'
-printf '  Help:            filetrans --help\n\n'
+printf '  GUI (recommended): filetrans-gui\n'
+printf '    Opens browser at http://localhost:7071\n'
+printf '  CLI sender:        sudo filetrans --role=sender myfile.zip\n'
+printf '  CLI receiver:      filetrans --role=receiver\n'
+printf '  Help:              filetrans --help\n\n'

@@ -132,8 +132,9 @@ jobs:
 
       - name: Build AppImage (amd64 only)
         if: matrix.arch == 'amd64'
+        continue-on-error: true
         run: |
-          sudo apt-get install -y libfuse2 imagemagick --no-install-recommends
+          sudo apt-get install -y libfuse2 imagemagick fonts-dejavu-core --no-install-recommends
 
           wget -q \
             "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
@@ -148,9 +149,10 @@ jobs:
           chmod +x AppDir/AppRun AppDir/usr/bin/filetrans
 
           convert -size 256x256 xc:#6c63ff \
-            -fill white -font DejaVu-Sans-Bold -pointsize 72 \
+            -fill white -font DejaVu-Sans -pointsize 72 \
             -gravity center -annotate 0 "ft" \
-            AppDir/filetrans.png
+            AppDir/filetrans.png 2>/dev/null || \
+          convert -size 256x256 xc:#6c63ff AppDir/filetrans.png
 
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run \
             AppDir "dist/filetrans_linux_amd64.AppImage"

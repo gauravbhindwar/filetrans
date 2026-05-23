@@ -55,20 +55,22 @@ install_binary() {
         [ -n "$VERSION" ] || { printf '\033[31mERROR:\033[0m Could not determine latest version. Pass manually: bash install-arch.sh v0.2.2\n' >&2; exit 1; }
     fi
 
-    local url="https://github.com/${REPO}/releases/download/${VERSION}/filetrans_linux_${arch}"
+    local base_url="https://github.com/${REPO}/releases/download/${VERSION}"
     info "Downloading filetrans ${VERSION} for linux/${arch} ..."
-    curl -fsSL "$url" -o /tmp/filetrans
-    curl -fsSL "https://github.com/${REPO}/releases/download/${VERSION}/checksums.txt" -o /tmp/filetrans_checksums.txt
+    curl -fsSL "${base_url}/filetrans_linux_${arch}"     -o /tmp/filetrans
+    curl -fsSL "${base_url}/filetrans-gui_linux_${arch}" -o /tmp/filetrans-gui
+    curl -fsSL "${base_url}/checksums.txt"               -o /tmp/filetrans_checksums.txt
 
-    info "Verifying checksum..."
-    grep "filetrans_linux_${arch}" /tmp/filetrans_checksums.txt | \
-        sha256sum -c - || die "Checksum verification failed"
+    info "Verifying checksums..."
+    grep "filetrans_linux_${arch}$"     /tmp/filetrans_checksums.txt | sha256sum -c - || die "CLI checksum failed"
+    grep "filetrans-gui_linux_${arch}$" /tmp/filetrans_checksums.txt | sha256sum -c - || die "GUI checksum failed"
 
-    chmod +x /tmp/filetrans
-    sudo install -Dm755 /tmp/filetrans "${INSTALL_DIR}/filetrans"
-    rm -f /tmp/filetrans /tmp/filetrans_checksums.txt
+    sudo install -Dm755 /tmp/filetrans     "${INSTALL_DIR}/filetrans"
+    sudo install -Dm755 /tmp/filetrans-gui "${INSTALL_DIR}/filetrans-gui"
+    rm -f /tmp/filetrans /tmp/filetrans-gui /tmp/filetrans_checksums.txt
 
     ok "filetrans ${VERSION} installed → ${INSTALL_DIR}/filetrans"
+    ok "filetrans-gui ${VERSION} installed → ${INSTALL_DIR}/filetrans-gui"
 }
 
 # ── method 2: build from PKGBUILD ─────────────────────────────────────────────
@@ -120,5 +122,7 @@ else
 fi
 
 printf '\nQuick start:\n'
-printf '  Sender:   sudo filetrans --role=sender myfile.zip\n'
-printf '  Receiver: filetrans --role=receiver\n\n'
+printf '  GUI (recommended): filetrans-gui\n'
+printf '    Opens browser at http://localhost:7071\n'
+printf '  CLI sender:        sudo filetrans --role=sender myfile.zip\n'
+printf '  CLI receiver:      filetrans --role=receiver\n\n'
