@@ -54,7 +54,7 @@ Physical transports:
 ## GauravTransfer Protocol (GTP/1.0)
 
 Custom binary transport protocol — no HTTP, no WebSocket overhead on the data path.
-
+![1779548559813](image/README/1779548559813.png)
 ```
 Sender                                  Receiver
 ──────                                  ────────
