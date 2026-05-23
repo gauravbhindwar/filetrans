@@ -62,6 +62,7 @@ func New(cfg *config.Config) *Server {
 	mux.HandleFunc("/api/reset", s.handleReset)
 	mux.HandleFunc("/api/reset-files", s.handleResetFiles)
 	mux.HandleFunc("/api/upload", s.handleUpload)
+	mux.HandleFunc("/api/discover", s.handleDiscover)
 
 	s.srv = &http.Server{
 		Addr:    fmt.Sprintf("127.0.0.1:%d", cfg.UIPort),

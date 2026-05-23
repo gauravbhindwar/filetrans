@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	defaultWindow   = 8   // chunks in-flight without waiting for ack
-	maxWindow       = 32
+	defaultWindow   = 32  // chunks in-flight without waiting for ack
+	maxWindow       = 128
 	dialTimeout     = 10 * time.Second
 	handshakeTimeout = 20 * time.Second
 )
@@ -62,6 +62,22 @@ func Connect(cfg *config.Config, role string) (*Conn, error) {
 		cfg.PeerAddr(), maxRetries, lastErr)
 }
 
+// ListenAll binds on all interfaces (0.0.0.0:port), needed for WiFi/LAN mode
+// where the local USB-link IP is not the right bind address.
+func ListenAll(port int, role string) (*Conn, error) {
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return nil, fmt.Errorf("gtp listen :%d: %w", port, err)
+	}
+	defer ln.Close()
+	ln.(*net.TCPListener).SetDeadline(time.Now().Add(10 * time.Minute))
+	raw, err := ln.Accept()
+	if err != nil {
+		return nil, fmt.Errorf("gtp accept: %w", err)
+	}
+	return serverHandshake(raw, role)
+}
+
 // serverHandshake: read HELLO, validate, reply HelloAck.
 func serverHandshake(raw net.Conn, myRole string) (*Conn, error) {
 	raw.SetDeadline(time.Now().Add(handshakeTimeout))
@@ -99,9 +115,9 @@ func serverHandshake(raw net.Conn, myRole string) (*Conn, error) {
 	myCaps := CapResume | CapMultiFile | CapWindow
 	agreedCaps := hello.Caps & myCaps
 
-	// Negotiate window size.
+	// Negotiate window size: take the maximum of both sides, capped at maxWindow.
 	window := defaultWindow
-	if hello.Window > 0 && hello.Window < window {
+	if hello.Window > window {
 		window = hello.Window
 	}
 	if window > maxWindow {

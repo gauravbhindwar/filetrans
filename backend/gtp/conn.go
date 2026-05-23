@@ -30,9 +30,13 @@ type Conn struct {
 
 // Wrap wraps an established net.Conn in a GTP Conn.
 func Wrap(c net.Conn) *Conn {
+	if tc, ok := c.(*net.TCPConn); ok {
+		tc.SetReadBuffer(4 << 20)
+		tc.SetWriteBuffer(4 << 20)
+	}
 	return &Conn{
 		raw: c,
-		bw:  bufio.NewWriterSize(c, 256*1024),
+		bw:  bufio.NewWriterSize(c, 4<<20),
 	}
 }
 

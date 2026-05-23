@@ -13,10 +13,9 @@ import (
 	"filetrans/backend/config"
 	"filetrans/backend/detector"
 	"filetrans/backend/fallback"
-	"filetrans/backend/handshake"
+	"filetrans/backend/gtp"
 	"filetrans/backend/logger"
 	"filetrans/backend/netconfig"
-	"filetrans/backend/protocol"
 	"filetrans/backend/transfer"
 	"filetrans/backend/ui"
 )
@@ -178,8 +177,8 @@ func runSender(cfg *config.Config, cliFiles []string) {
 		return
 	}
 
-	ui.Infof("Connecting to %s ...", cfg.PeerWSURL())
-	conn, err := handshake.Connect(cfg, protocol.RoleSender)
+	ui.Infof("Connecting to %s ...", cfg.PeerAddr())
+	conn, err := gtp.Connect(cfg, "sender")
 	if err != nil {
 		ui.Errorf("Connection failed: %v", err)
 		return
@@ -188,7 +187,7 @@ func runSender(cfg *config.Config, cliFiles []string) {
 	ui.Successf("Connected. Starting transfer...")
 
 	baseDir := transfer.CommonBaseDir(files)
-	if err := transfer.Send(conn, files, cfg, baseDir, nil); err != nil {
+	if err := gtp.Send(conn, files, cfg, baseDir, nil); err != nil {
 		ui.Errorf("Transfer failed: %v", err)
 		return
 	}
@@ -202,9 +201,9 @@ func runReceiver(cfg *config.Config) {
 		return
 	}
 
-	ui.Infof("Listening on %s", cfg.ServerAddr())
+	ui.Infof("Listening on :%d", cfg.Port)
 	ui.Infof("Now start the sender on the other machine.")
-	conn, err := handshake.Listen(cfg, protocol.RoleReceiver)
+	conn, err := gtp.ListenAll(cfg.Port, "receiver")
 	if err != nil {
 		ui.Errorf("Accept failed: %v", err)
 		return
@@ -212,7 +211,7 @@ func runReceiver(cfg *config.Config) {
 	defer conn.Close()
 	ui.Successf("Sender connected.")
 
-	if err := transfer.Receive(conn, dlDir, nil); err != nil {
+	if err := gtp.Receive(conn, dlDir, nil); err != nil {
 		ui.Errorf("Receive error: %v", err)
 	}
 }

@@ -54,8 +54,8 @@ func sendFile(conn *Conn, fileID uint32, path, baseDir string, cb *transfer.Call
 	if chunkSize < 1<<17 {
 		chunkSize = 1 << 17 // min 128 KiB
 	}
-	if chunkSize > 4<<20 {
-		chunkSize = 4 << 20 // max 4 MiB
+	if chunkSize > 16<<20 {
+		chunkSize = 16 << 20 // max 16 MiB
 	}
 
 	totalChunks := (info.Size() + int64(chunkSize) - 1) / int64(chunkSize)

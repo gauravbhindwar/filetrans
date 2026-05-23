@@ -8,10 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"filetrans/backend/fallback"
-	"filetrans/backend/handshake"
-	"filetrans/backend/protocol"
+	"filetrans/backend/gtp"
+	"filetrans/backend/gtp/discovery"
 	"filetrans/backend/transfer"
 	"filetrans/backend/ui"
 )
@@ -185,7 +186,7 @@ func (s *Server) handleStart(w http.ResponseWriter, r *http.Request) {
 				s.state.setPhase(PhaseConnected, "No files selected")
 				return
 			}
-			conn, err := handshake.Connect(s.cfg, protocol.RoleSender)
+			conn, err := gtp.Connect(s.cfg, "sender")
 			if err != nil {
 				s.state.setPhase(PhaseConnected, fmt.Sprintf("Connect failed: %v", err))
 				return
@@ -193,7 +194,7 @@ func (s *Server) handleStart(w http.ResponseWriter, r *http.Request) {
 			defer conn.Close()
 			s.state.setPhase(PhaseTransfer, "Sending files...")
 			baseDir := transfer.CommonBaseDir(files)
-			if err := transfer.Send(conn, files, s.cfg, baseDir, cb); err != nil {
+			if err := gtp.Send(conn, files, s.cfg, baseDir, cb); err != nil {
 				s.state.setPhase(PhaseConnected, fmt.Sprintf("Send error: %v", err))
 			}
 		} else {
@@ -201,15 +202,15 @@ func (s *Server) handleStart(w http.ResponseWriter, r *http.Request) {
 				s.state.setPhase(PhaseConnected, fmt.Sprintf("Cannot create download dir: %v", err))
 				return
 			}
-			s.state.setPhase(PhaseTransfer, fmt.Sprintf("Listening on %s...", s.cfg.ServerAddr()))
-			conn, err := handshake.Listen(s.cfg, protocol.RoleReceiver)
+			s.state.setPhase(PhaseTransfer, fmt.Sprintf("Listening on :%d...", s.cfg.Port))
+			conn, err := gtp.ListenAll(s.cfg.Port, "receiver")
 			if err != nil {
 				s.state.setPhase(PhaseConnected, fmt.Sprintf("Listen failed: %v", err))
 				return
 			}
 			defer conn.Close()
 			s.state.setPhase(PhaseTransfer, "Receiving files...")
-			if err := transfer.Receive(conn, s.cfg.DownloadDir, cb); err != nil {
+			if err := gtp.Receive(conn, s.cfg.DownloadDir, cb); err != nil {
 				s.state.setPhase(PhaseConnected, fmt.Sprintf("Receive error: %v", err))
 			}
 		}
@@ -316,4 +317,23 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	}
 	s.state.mu.Unlock()
 	writeJSON(w, map[string]string{"ok": "1"})
+}
+
+// handleDiscover uses GTP mDNS to find peers on the LAN.
+func (s *Server) handleDiscover(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	devID := s.cfg.PeerIP // reuse field for device identity
+	peers, err := discovery.Scan(s.cfg.Port, devID, 3*time.Second)
+	if err != nil || len(peers) == 0 {
+		writeJSON(w, map[string]interface{}{"peers": []string{}})
+		return
+	}
+	ips := make([]string, len(peers))
+	for i, p := range peers {
+		ips[i] = p.IP
+	}
+	writeJSON(w, map[string]interface{}{"peers": ips})
 }

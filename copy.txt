@@ -1,0 +1,9 @@
+gauravbhindwar@nanoEngineer:~/Downloads/filetrans$ sudo bash scripts/setup_gadget.sh
+[sudo] password for gauravbhindwar:     
+bash: scripts/setup_gadget.sh: No such file or directory
+gauravbhindwar@nanoEngineer:~/Downloads/filetrans$ \ls /sys/class/udc/
+ls: cannot access '/sys/class/udc/': No such file or directory
+gauravbhindwar@nanoEngineer:~/Downloads/filetrans$ sudo bash scripts/setup_gadget.sh
+bash: scripts/setup_gadget.sh: No such file or directory
+gauravbhindwar@nanoEngineer:~/Downloads/filetrans$ ^C
+gauravbhindwar@nanoEngineer:~/Downloads/filetrans$ 
