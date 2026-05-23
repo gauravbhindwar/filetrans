@@ -21,25 +21,25 @@ section: "utils"
 priority: "optional"
 
 contents:
-  - src: "./dist/filetrans_linux_${GOARCH}"
+  - src: "../dist/filetrans_linux_${GOARCH}"
     dst: "/usr/bin/filetrans"
     file_info:
       mode: 0755
 
-  - src: "./dist/filetrans-gui_linux_${GOARCH}"
+  - src: "../dist/filetrans-gui_linux_${GOARCH}"
     dst: "/usr/bin/filetrans-gui"
     file_info:
       mode: 0755
 
-  - src: "./scripts/linux/setup_gadget.sh"
+  - src: "../scripts/linux/setup_gadget.sh"
     dst: "/usr/share/filetrans/setup_gadget.sh"
     file_info:
       mode: 0755
 
-  - src: "./LICENSE"
+  - src: "../LICENSE"
     dst: "/usr/share/doc/filetrans/copyright"
 
-  - src: "./README.md"
+  - src: "../README.md"
     dst: "/usr/share/doc/filetrans/README.md"
 
 rpm:

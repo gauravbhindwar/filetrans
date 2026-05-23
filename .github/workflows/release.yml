@@ -122,13 +122,13 @@ jobs:
           echo "GOARCH=${{ matrix.goarch }}"                >> "$GITHUB_ENV"
 
       - name: Build .deb
-        run: nfpm package --config packaging/nfpm.yaml --packager deb --target dist/
+        run: cd packaging && nfpm package --config nfpm.yaml --packager deb --target ../dist/
 
       - name: Build .rpm
-        run: nfpm package --config packaging/nfpm.yaml --packager rpm --target dist/
+        run: cd packaging && nfpm package --config nfpm.yaml --packager rpm --target ../dist/
 
       - name: Build Arch (.pkg.tar.zst)
-        run: nfpm package --config packaging/nfpm.yaml --packager archlinux --target dist/
+        run: cd packaging && nfpm package --config nfpm.yaml --packager archlinux --target ../dist/
 
       - name: Build AppImage (amd64 only)
         if: matrix.arch == 'amd64'
