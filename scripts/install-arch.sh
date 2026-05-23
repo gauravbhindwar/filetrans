@@ -42,8 +42,17 @@ install_binary() {
 
     if [ -z "$VERSION" ]; then
         info "Resolving latest version..."
-        VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-            | grep '"tag_name"' | sed 's/.*"\(v[^"]*\)".*/\1/')"
+        # Method 1: HTML redirect (no auth, no rate limits)
+        VERSION="$(curl -fsSLI "https://github.com/${REPO}/releases/latest" \
+            | grep -i '^location:' \
+            | sed 's|.*/tag/||' \
+            | tr -d '\r\n')"
+        # Method 2: JSON API fallback
+        if [ -z "$VERSION" ]; then
+            VERSION="$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" \
+                | grep '"tag_name"' | sed 's/.*"\(v[^"]*\)".*/\1/')"
+        fi
+        [ -n "$VERSION" ] || { printf '\033[31mERROR:\033[0m Could not determine latest version. Pass manually: bash install-arch.sh v0.2.2\n' >&2; exit 1; }
     fi
 
     local url="https://github.com/${REPO}/releases/download/${VERSION}/filetrans_linux_${arch}"

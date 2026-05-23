@@ -63,12 +63,31 @@ detect_arch() {
 resolve_version() {
     if [ -n "$1" ]; then
         VERSION="$1"
-    else
-        info "Fetching latest release..."
-        VERSION="$(download "https://api.github.com/repos/${REPO}/releases/latest" - \
-            | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
-        [ -n "$VERSION" ] || die "Could not determine latest version. Pass a version manually: sh install.sh v0.1.0"
+        return
     fi
+    info "Fetching latest release..."
+    # Method 1: follow the /releases/latest HTML redirect — works without auth,
+    # not subject to API rate limits, reliable even seconds after a tag push.
+    if command -v curl >/dev/null 2>&1; then
+        VERSION="$(curl -fsSLI "https://github.com/${REPO}/releases/latest" \
+            | grep -i '^location:' \
+            | sed 's|.*/tag/||' \
+            | tr -d '\r\n')"
+    elif command -v wget >/dev/null 2>&1; then
+        VERSION="$(wget -q --server-response --spider \
+            "https://github.com/${REPO}/releases/latest" 2>&1 \
+            | grep -i 'Location:' | tail -1 \
+            | sed 's|.*/tag/||' | tr -d '\r\n')"
+    fi
+    # Method 2: fallback to JSON API (slower, rate-limited, but works if redirect fails)
+    if [ -z "$VERSION" ]; then
+        if command -v curl >/dev/null 2>&1; then
+            VERSION="$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" \
+                | grep '"tag_name"' | head -1 \
+                | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
+        fi
+    fi
+    [ -n "$VERSION" ] || die "Could not determine latest version. Pass version manually: sh install.sh v0.2.2"
     info "Version: $VERSION"
 }
 
