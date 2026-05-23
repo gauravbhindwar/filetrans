@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"d:\\\\workspace\\\\filetrans\"; go mod tidy; echo \"exit: $LASTEXITCODE\")",
+      "PowerShell(cd \"d:\\\\workspace\\\\filetrans\"; New-Item -ItemType Directory -Force -Path dist | Out-Null; go build -trimpath -ldflags=\"-s -w\" -o dist/filetrans_windows_amd64.exe ./cmd/filetrans; echo \"exit: $LASTEXITCODE\")",
+      "PowerShell(cd \"d:\\\\workspace\\\\filetrans\"; $env:GOOS=\"linux\"; $env:GOARCH=\"amd64\"; go build -trimpath -ldflags=\"-s -w\" -o dist/filetrans_linux_amd64 ./cmd/filetrans; echo \"exit: $LASTEXITCODE\"; $env:GOOS=\"\"; $env:GOARCH=\"\")",
+      "PowerShell(Get-ChildItem \"d:\\\\workspace\\\\filetrans\" -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object @{N=\"Path\";E={$_.FullName.Replace\\(\"D:\\\\workspace\\\\filetrans\\\\\",\"\"\\)}} | Format-Table -AutoSize)"
+    ]
+  }
+}
