@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"filetrans/backend/config"
 	"filetrans/backend/handshake"
@@ -18,19 +19,20 @@ import (
 )
 
 // Send transmits all files over conn in order, then sends SESSION_DONE.
-// baseDir is used to compute relative names for directory transfers.
-func Send(conn *handshake.Conn, files []string, cfg *config.Config, baseDir string) error {
+// cb may be nil — terminal progress bar is used in that case.
+func Send(conn *handshake.Conn, files []string, cfg *config.Config, baseDir string, cb *Callbacks) error {
 	for _, path := range files {
-		if err := sendFile(conn, path, cfg, baseDir); err != nil {
-			// Notify peer of failure before returning.
+		if err := sendFile(conn, path, cfg, baseDir, cb); err != nil {
+			cb.fileError(filepath.Base(path), err)
 			_ = conn.SendJSON(protocol.ErrorMsg{Type: protocol.MsgError, Message: err.Error()})
 			return err
 		}
 	}
+	cb.sessionDone()
 	return conn.SendJSON(protocol.SessionDoneMsg{Type: protocol.MsgSessionDone})
 }
 
-func sendFile(conn *handshake.Conn, path string, cfg *config.Config, baseDir string) error {
+func sendFile(conn *handshake.Conn, path string, cfg *config.Config, baseDir string, cb *Callbacks) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return fmt.Errorf("stat %s: %w", path, err)
@@ -57,7 +59,6 @@ func sendFile(conn *handshake.Conn, path string, cfg *config.Config, baseDir str
 		return fmt.Errorf("send FILE_OFFER: %w", err)
 	}
 
-	// Read FILE_ACCEPT or FILE_REJECT.
 	msgType, raw, _, err := conn.ReadFrame()
 	if err != nil {
 		return fmt.Errorf("read response: %w", err)
@@ -70,20 +71,21 @@ func sendFile(conn *handshake.Conn, path string, cfg *config.Config, baseDir str
 	case protocol.MsgFileAccept:
 		var accept protocol.FileAcceptMsg
 		json.Unmarshal(raw, &accept)
-		return sendChunks(conn, path, info.Size(), accept.ResumeFrom, chunkSize)
+		cb.fileStart(relName, info.Size())
+		return sendChunks(conn, path, relName, info.Size(), accept.ResumeFrom, chunkSize, cb)
 	default:
 		return fmt.Errorf("unexpected response to FILE_OFFER: %s", msgType)
 	}
 }
 
-func sendChunks(conn *handshake.Conn, path string, fileSize, resumeFrom int64, chunkSize int) error {
+func sendChunks(conn *handshake.Conn, path, relName string, fileSize, resumeFrom int64, chunkSize int, cb *Callbacks) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", path, err)
 	}
 	defer f.Close()
 
-	// Compute SHA-256 of the full file concurrently while sending.
+	// Compute SHA-256 concurrently while sending.
 	sha256Ch := make(chan string, 1)
 	go func() {
 		h := sha256.New()
@@ -97,18 +99,23 @@ func sendChunks(conn *handshake.Conn, path string, fileSize, resumeFrom int64, c
 		sha256Ch <- hex.EncodeToString(h.Sum(nil))
 	}()
 
-	// Seek to resume point.
 	if resumeFrom > 0 {
 		if _, err := f.Seek(resumeFrom, io.SeekStart); err != nil {
 			return fmt.Errorf("seek: %w", err)
 		}
 	}
 
-	prog := ui.NewProgress(filepath.Base(path), fileSize)
-	prog.Add(resumeFrom) // account for already-received bytes
+	// Terminal progress (used when no GUI callbacks supplied).
+	var prog *ui.Progress
+	if cb == nil {
+		prog = ui.NewProgress(filepath.Base(path), fileSize)
+		prog.Add(resumeFrom)
+	}
 
 	buf := make([]byte, chunkSize)
 	chunkIndex := resumeFrom / int64(chunkSize)
+	transferred := resumeFrom
+	startTime := time.Now()
 
 	for {
 		n, readErr := f.Read(buf)
@@ -124,7 +131,6 @@ func sendChunks(conn *handshake.Conn, path string, fileSize, resumeFrom int64, c
 			if err := conn.SendBinary(chunk); err != nil {
 				return fmt.Errorf("send chunk %d: %w", chunkIndex, err)
 			}
-			// Wait for ACK before sending next chunk (flow control).
 			ackType, ackRaw, _, ackErr := conn.ReadFrame()
 			if ackErr != nil {
 				return fmt.Errorf("read CHUNK_ACK: %w", ackErr)
@@ -134,8 +140,22 @@ func sendChunks(conn *handshake.Conn, path string, fileSize, resumeFrom int64, c
 				json.Unmarshal(ackRaw, &errMsg)
 				return fmt.Errorf("expected CHUNK_ACK, got %s: %s", ackType, errMsg.Message)
 			}
-			prog.Add(int64(n))
+			transferred += int64(n)
 			chunkIndex++
+
+			if prog != nil {
+				prog.Add(int64(n))
+			} else {
+				elapsed := time.Since(startTime).Seconds()
+				var speed, etaSec float64
+				if elapsed > 0 {
+					speed = float64(transferred) / elapsed
+					if speed > 0 {
+						etaSec = float64(fileSize-transferred) / speed
+					}
+				}
+				cb.progress(relName, transferred, speed, etaSec)
+			}
 		}
 		if readErr == io.EOF {
 			break
@@ -145,7 +165,9 @@ func sendChunks(conn *handshake.Conn, path string, fileSize, resumeFrom int64, c
 		}
 	}
 
-	prog.Done()
+	if prog != nil {
+		prog.Done()
+	}
 
 	sha256Sum := <-sha256Ch
 	if sha256Sum == "" {
@@ -159,7 +181,6 @@ func sendChunks(conn *handshake.Conn, path string, fileSize, resumeFrom int64, c
 		return fmt.Errorf("send COMPLETE: %w", err)
 	}
 
-	// Read COMPLETE_ACK.
 	msgType, ackRaw, _, err := conn.ReadFrame()
 	if err != nil {
 		return fmt.Errorf("read COMPLETE_ACK: %w", err)
@@ -173,12 +194,14 @@ func sendChunks(conn *handshake.Conn, path string, fileSize, resumeFrom int64, c
 		return fmt.Errorf("checksum mismatch — sent %s, receiver got %s", sha256Sum, ack.SHA256)
 	}
 
-	ui.Successf("Sent: %s", filepath.Base(path))
+	cb.fileComplete(relName)
+	if prog == nil {
+		ui.Successf("Sent: %s", filepath.Base(path))
+	}
 	return nil
 }
 
 // relativeName computes a forward-slash relative path for use in FILE_OFFER.
-// If baseDir is empty or path is not under baseDir, returns just the filename.
 func relativeName(path, baseDir string) string {
 	if baseDir != "" {
 		rel, err := filepath.Rel(baseDir, path)
@@ -189,7 +212,7 @@ func relativeName(path, baseDir string) string {
 	return filepath.ToSlash(filepath.Base(path))
 }
 
-// CommonBaseDir finds the longest common directory among a list of file paths.
+// CommonBaseDir finds the longest common directory prefix among file paths.
 func CommonBaseDir(paths []string) string {
 	if len(paths) == 0 {
 		return ""

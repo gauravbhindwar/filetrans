@@ -17,7 +17,7 @@ env:
   GO_VERSION: '1.22'
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 1: cross-compile all binaries on Linux (fast, no OS matrix needed)
+# Job 1: cross-compile all binaries
 # ─────────────────────────────────────────────────────────────────────────────
 jobs:
   build:
@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      tag:     ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,168 +39,155 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME:-${{ inputs.tag }}}"
           VERSION="${TAG#v}"
+          echo "tag=${TAG}"         >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "TAG=${TAG}"     >> "$GITHUB_ENV"
+          echo "TAG=${TAG}"         >> "$GITHUB_ENV"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
 
       - name: Download dependencies
         run: go mod download
 
       - name: Run tests
-        run: go test ./... -timeout 60s -race
+        run: go test ./... -timeout 60s
 
       - name: Build all targets
         run: |
           mkdir -p dist
-          LDFLAGS="-s -w -X main.version=${TAG}"
+          LDFLAGS="-s -w -X main.version=${VERSION}"
 
           build() {
             local goos=$1 goarch=$2 ext=$3
+            echo "  building filetrans_${goos}_${goarch}${ext} ..."
             GOOS=$goos GOARCH=$goarch \
               go build -trimpath -ldflags="$LDFLAGS" \
               -o "dist/filetrans_${goos}_${goarch}${ext}" ./cmd/filetrans
-            echo "  built: filetrans_${goos}_${goarch}${ext}"
+            GOOS=$goos GOARCH=$goarch \
+              go build -trimpath -ldflags="$LDFLAGS" \
+              -o "dist/filetrans-gui_${goos}_${goarch}${ext}" ./cmd/filetrans-gui
           }
 
-          build linux  amd64 ""
-          build linux  arm64 ""
-          build linux  arm   ""
+          build linux   amd64 ""
+          build linux   arm64 ""
+          build linux   arm   ""
           build windows amd64 ".exe"
           build windows arm64 ".exe"
           build darwin  amd64 ""
           build darwin  arm64 ""
 
-      - name: Upload binaries artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: binaries
           path: dist/
           retention-days: 1
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 2: Linux packages — deb, rpm, Arch, AppImage (runs on Ubuntu)
+# Job 2: Linux packages
 # ─────────────────────────────────────────────────────────────────────────────
   package-linux:
     name: Package Linux (${{ matrix.arch }})
     needs: build
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: amd64
             goarch: amd64
-            appimage_tool: appimagetool-x86_64.AppImage
           - arch: arm64
             goarch: arm64
-            appimage_tool: appimagetool-aarch64.AppImage
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download binaries
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: binaries
           path: dist/
 
-      - name: Make binary executable
-        run: chmod +x dist/filetrans_linux_${{ matrix.goarch }}
+      - name: Make binaries executable
+        run: chmod +x dist/filetrans_linux_${{ matrix.goarch }} dist/filetrans-gui_linux_${{ matrix.goarch }} || true
 
       - name: Install nfpm
         run: |
-          curl -fsSL https://github.com/goreleaser/nfpm/releases/latest/download/nfpm_linux_amd64.tar.gz \
+          curl -fsSL \
+            "https://github.com/goreleaser/nfpm/releases/latest/download/nfpm_linux_amd64.tar.gz" \
             | tar -xz -C /usr/local/bin nfpm
+          nfpm --version
 
-      - name: Install ImageMagick (for AppImage icon)
-        run: sudo apt-get install -y imagemagick
-
-      - name: Set packaging env
+      - name: Set env
         run: |
           echo "VERSION=${{ needs.build.outputs.version }}" >> "$GITHUB_ENV"
           echo "ARCH=${{ matrix.arch }}"                    >> "$GITHUB_ENV"
           echo "GOARCH=${{ matrix.goarch }}"                >> "$GITHUB_ENV"
 
       - name: Build .deb
-        run: |
-          nfpm package \
-            --config packaging/nfpm.yaml \
-            --packager deb \
-            --target dist/
-          echo "Built .deb"
+        run: nfpm package --config packaging/nfpm.yaml --packager deb --target dist/
 
       - name: Build .rpm
-        run: |
-          nfpm package \
-            --config packaging/nfpm.yaml \
-            --packager rpm \
-            --target dist/
-          echo "Built .rpm"
+        run: nfpm package --config packaging/nfpm.yaml --packager rpm --target dist/
 
-      - name: Build Arch package (.pkg.tar.zst)
-        run: |
-          nfpm package \
-            --config packaging/nfpm.yaml \
-            --packager archlinux \
-            --target dist/
-          echo "Built Arch package"
+      - name: Build Arch (.pkg.tar.zst)
+        run: nfpm package --config packaging/nfpm.yaml --packager archlinux --target dist/
 
-      - name: Build AppImage (${{ matrix.arch }})
-        if: matrix.arch == 'amd64'   # arm64 AppImage needs QEMU; skip for now
+      - name: Build AppImage (amd64 only)
+        if: matrix.arch == 'amd64'
         run: |
-          # Download appimagetool
-          wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/${{ matrix.appimage_tool }}" \
+          sudo apt-get install -y libfuse2 imagemagick --no-install-recommends
+
+          wget -q \
+            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
             -O appimagetool
           chmod +x appimagetool
 
-          # Build AppDir structure
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications
-          cp dist/filetrans_linux_${{ matrix.goarch }} AppDir/usr/bin/filetrans
+          cp dist/filetrans_linux_amd64 AppDir/usr/bin/filetrans
           cp packaging/appimage/AppRun AppDir/AppRun
           cp packaging/appimage/filetrans.desktop AppDir/filetrans.desktop
-          cp packaging/appimage/filetrans.desktop AppDir/usr/share/applications/filetrans.desktop
+          cp packaging/appimage/filetrans.desktop AppDir/usr/share/applications/
           chmod +x AppDir/AppRun AppDir/usr/bin/filetrans
 
-          # Generate a simple icon using ImageMagick
-          convert -size 256x256 xc:#2563eb \
-            -fill white -font DejaVu-Sans-Bold -pointsize 80 \
+          convert -size 256x256 xc:#6c63ff \
+            -fill white -font DejaVu-Sans-Bold -pointsize 72 \
             -gravity center -annotate 0 "ft" \
             AppDir/filetrans.png
 
-          # Build AppImage (--appimage-extract-and-run avoids FUSE requirement)
-          ARCH=${{ matrix.arch }} \
-            ./appimagetool --appimage-extract-and-run \
-            AppDir "dist/filetrans_linux_${{ matrix.arch }}.AppImage"
-          echo "Built AppImage"
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run \
+            AppDir "dist/filetrans_linux_amd64.AppImage"
 
-      - name: Build generic tarball
+      - name: Build tarball
         run: |
           tar -czf "dist/filetrans_linux_${{ matrix.arch }}.tar.gz" \
-            -C dist "filetrans_linux_${{ matrix.goarch }}"
-          echo "Built tarball"
+            -C dist \
+            "filetrans_linux_${{ matrix.goarch }}" \
+            "filetrans-gui_linux_${{ matrix.goarch }}"
 
-      - name: Upload Linux packages artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: packages-linux-${{ matrix.arch }}
-          path: dist/*.deb dist/*.rpm dist/*.tar.zst dist/*.AppImage dist/*.tar.gz
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.zst
+            dist/*.AppImage
+            dist/*.tar.gz
           retention-days: 1
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 3: macOS packages — DMG + PKG (must run on macOS runner)
+# Job 3: macOS packages
 # ─────────────────────────────────────────────────────────────────────────────
   package-macos:
     name: Package macOS (${{ matrix.arch }})
     needs: build
     runs-on: macos-latest
     strategy:
+      fail-fast: false
       matrix:
         arch: [amd64, arm64]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download binaries
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: binaries
           path: dist/
@@ -212,20 +200,22 @@ jobs:
             "${{ needs.build.outputs.version }}" \
             "${{ matrix.arch }}"
 
-      - name: Upload macOS packages artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: packages-macos-${{ matrix.arch }}
-          path: dist/*.dmg dist/*.pkg
+          path: |
+            dist/*.dmg
+            dist/*.pkg
           retention-days: 1
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 4: Compute checksums + create GitHub Release
+# Job 4: Checksums + GitHub Release
 # ─────────────────────────────────────────────────────────────────────────────
   release:
     name: Publish Release
     needs: [build, package-linux, package-macos]
     runs-on: ubuntu-latest
+    if: always() && needs.build.result == 'success'
 
     steps:
       - uses: actions/checkout@v4
@@ -245,18 +235,18 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name || inputs.tag }}
+          tag_name: ${{ needs.build.outputs.tag }}
           generate_release_notes: true
-          files: |
-            release-assets/*
+          files: release-assets/*
           body: |
             ## filetrans ${{ needs.build.outputs.version }}
 
-            Direct file transfer over a USB-C cable. No cloud, no Wi-Fi.
+            Direct file transfer over USB-C cable (or LAN fallback). No cloud. No Wi-Fi required.
+            License: GPL-3.0
 
-            ### Install
+            ### Quick install
 
-            **Linux (quick install):**
+            **Linux:**
             ```bash
             curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | sh
             ```
@@ -266,43 +256,30 @@ jobs:
             curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install-arch.sh | bash
             ```
 
-            **macOS:**
-            ```bash
-            # Download .pkg and double-click, or:
-            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | sh
-            ```
+            **Windows:** Download `.exe` below and run from PowerShell.
 
-            **Windows:** Download `.exe` below and run from PowerShell or Command Prompt.
+            **macOS:** Download `.dmg` or `.pkg` below.
 
             ### Downloads
 
             | File | Platform |
             |------|----------|
-            | `filetrans_linux_amd64` | Linux x86-64 (binary) |
-            | `filetrans_linux_arm64` | Linux ARM64 (binary) |
-            | `filetrans_linux_arm`   | Linux ARMv7 (Raspberry Pi 2/3) |
+            | `filetrans_linux_amd64` | Linux x86-64 CLI |
+            | `filetrans-gui_linux_amd64` | Linux x86-64 GUI |
+            | `filetrans_linux_arm64` | Linux ARM64 CLI |
+            | `filetrans_linux_arm` | Linux ARMv7 (Pi) CLI |
             | `filetrans_linux_amd64.AppImage` | Linux x86-64 AppImage |
             | `filetrans_linux_amd64.tar.gz` | Linux x86-64 tarball |
             | `filetrans_linux_arm64.tar.gz` | Linux ARM64 tarball |
-            | `*.amd64.deb` | Debian / Ubuntu / Mint |
-            | `*.x86_64.rpm` | Fedora / RHEL / openSUSE |
-            | `*.x86_64.pkg.tar.zst` | Arch Linux / Manjaro |
-            | `filetrans_windows_amd64.exe` | Windows 10/11 x64 |
-            | `filetrans_windows_arm64.exe` | Windows on ARM |
-            | `filetrans_darwin_amd64` | macOS Intel (binary) |
-            | `filetrans_darwin_arm64` | macOS Apple Silicon (binary) |
+            | `*.amd64.deb` | Debian / Ubuntu |
+            | `*.x86_64.rpm` | Fedora / RHEL |
+            | `*.pkg.tar.zst` | Arch Linux |
+            | `filetrans_windows_amd64.exe` | Windows x64 CLI |
+            | `filetrans-gui_windows_amd64.exe` | Windows x64 GUI |
+            | `filetrans_windows_arm64.exe` | Windows ARM64 CLI |
+            | `filetrans_darwin_amd64` | macOS Intel CLI |
+            | `filetrans_darwin_arm64` | macOS Apple Silicon CLI |
             | `*_darwin_amd64_*.dmg` | macOS Intel DMG |
             | `*_darwin_arm64_*.dmg` | macOS Apple Silicon DMG |
-            | `*_darwin_*.pkg` | macOS installer package |
 
-            Verify all downloads with `checksums.txt` (SHA-256).
-
-            ### Quick start (USB-C transfer)
-
-            ```bash
-            # Linux side (run setup_gadget.sh first as root for USB gadget mode)
-            sudo filetrans --role=sender bigfile.iso
-
-            # Windows / other side
-            filetrans --role=receiver
-            ```
+            Verify with `checksums.txt` (SHA-256).

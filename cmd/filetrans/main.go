@@ -188,7 +188,7 @@ func runSender(cfg *config.Config, cliFiles []string) {
 	ui.Successf("Connected. Starting transfer...")
 
 	baseDir := transfer.CommonBaseDir(files)
-	if err := transfer.Send(conn, files, cfg, baseDir); err != nil {
+	if err := transfer.Send(conn, files, cfg, baseDir, nil); err != nil {
 		ui.Errorf("Transfer failed: %v", err)
 		return
 	}
@@ -212,7 +212,7 @@ func runReceiver(cfg *config.Config) {
 	defer conn.Close()
 	ui.Successf("Sender connected.")
 
-	if err := transfer.Receive(conn, dlDir); err != nil {
+	if err := transfer.Receive(conn, dlDir, nil); err != nil {
 		ui.Errorf("Receive error: %v", err)
 	}
 }

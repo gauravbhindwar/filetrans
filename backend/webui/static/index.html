@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>filetrans</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242736;
+    --border: #2e3147;
+    --accent: #6c63ff;
+    --accent2: #a78bfa;
+    --success: #22c55e;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo {
+    font-size: 22px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.5px;
+  }
+  .logo-sub { font-size: 12px; color: var(--muted); margin-left: 4px; }
+  .header-meta { display: flex; gap: 10px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+  .port-chip {
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+  }
+  .status-badge {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .badge-idle       { background: #1e293b; color: var(--muted); border: 1px solid var(--border); }
+  .badge-usb        { background: #1c1a00; color: var(--warn); border: 1px solid #854d0e; }
+  .badge-connecting { background: #1a1040; color: var(--accent2); border: 1px solid #4c1d95; }
+  .badge-connected  { background: #052e16; color: var(--success); border: 1px solid #166534; }
+  .badge-transfer   { background: #1a1040; color: var(--accent2); border: 1px solid #4c1d95; }
+  .badge-done       { background: #052e16; color: var(--success); border: 1px solid #166534; }
+
+  /* ── Main ── */
+  main {
+    flex: 1;
+    padding: 20px 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    max-width: 1100px;
+    margin: 0 auto;
+    width: 100%;
+    align-content: start;
+  }
+  @media (max-width: 720px) { main { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+  .card-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .full-width { grid-column: 1 / -1; }
+
+  /* ── Connection card ── */
+  .conn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  @media (max-width: 500px) { .conn-grid { grid-template-columns: 1fr; } }
+
+  .field-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    padding: 9px 12px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input:focus { border-color: var(--accent); }
+  .input::placeholder { color: var(--muted); }
+  .conn-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .conn-msg { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 18px; }
+
+  /* ── Role ── */
+  .role-group { display: flex; gap: 10px; }
+  .role-btn {
+    flex: 1;
+    padding: 12px 8px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .role-btn:hover { border-color: var(--accent); }
+  .role-btn.active { border-color: var(--accent); background: #1e1a50; color: var(--accent2); }
+  .role-icon { font-size: 22px; display: block; margin-bottom: 5px; }
+  .dl-dir-row { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+  .dl-dir-label { font-size: 12px; color: var(--muted); flex: 1; word-break: break-all; }
+
+  /* ── Drop zone ── */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 28px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: #12103a; }
+  .drop-zone-icon { font-size: 34px; margin-bottom: 8px; }
+  .drop-zone-label { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .drop-zone-sub { font-size: 12px; color: var(--muted); }
+  #fileInput { display: none; }
+
+  /* ── File list ── */
+  .file-list { margin-top: 12px; max-height: 260px; overflow-y: auto; }
+  .file-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--surface2);
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .file-icon { font-size: 16px; flex-shrink: 0; }
+  .file-name { flex: 1; word-break: break-all; font-weight: 500; }
+  .file-size { color: var(--muted); flex-shrink: 0; white-space: nowrap; }
+  .file-remove { cursor: pointer; color: var(--muted); flex-shrink: 0; padding: 0 2px; }
+  .file-remove:hover { color: var(--danger); }
+  .file-count { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  /* ── Progress ── */
+  .progress-list { display: flex; flex-direction: column; gap: 10px; }
+  .progress-item { background: var(--surface2); border-radius: var(--radius-sm); padding: 12px 14px; }
+  .progress-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  .progress-name { font-size: 12px; font-weight: 500; flex: 1; word-break: break-all; }
+  .progress-stats { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+  .bar-bg { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 3px; transition: width 0.25s; }
+  .bar-fill.done { background: var(--success); }
+  .bar-fill.error-fill { background: var(--danger); }
+
+  /* ── Done banner ── */
+  .done-banner {
+    background: #052e16; border: 1px solid #166534;
+    border-radius: var(--radius); padding: 18px 20px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .done-icon { font-size: 28px; flex-shrink: 0; }
+  .done-text h3 { font-size: 15px; color: var(--success); margin-bottom: 3px; }
+  .done-text p { font-size: 12px; color: var(--muted); }
+
+  /* ── Scan results ── */
+  .scan-results { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .scan-item {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--surface2); border-radius: var(--radius-sm);
+    padding: 7px 10px; font-size: 12px;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 8px 16px; border-radius: var(--radius-sm);
+    border: none; cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #5b52e0; }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .btn-danger:hover { background: #450a0a; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+  /* ── Action bar ── */
+  .action-bar {
+    position: sticky; bottom: 0;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex; gap: 12px; align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  #actionMsg { font-size: 12px; color: var(--muted); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center; padding: 14px;
+    font-size: 12px; color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  footer .heart { color: #f43f5e; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid transparent; border-top-color: currentColor;
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    display: inline-block; vertical-align: middle;
+  }
+
+  .empty-msg { font-size: 13px; color: var(--muted); text-align: center; padding: 16px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <span class="logo">filetrans</span>
+    <span class="logo-sub">No cloud. No Wi-Fi. Direct transfer.</span>
+  </div>
+  <div class="header-meta">
+    <span class="port-chip" id="portChip">transfer: —</span>
+    <span class="port-chip" id="myIPChip">local IP: detecting…</span>
+    <div id="statusBadge" class="status-badge badge-idle">Idle</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Connection -->
+  <div class="card full-width">
+    <div class="card-title">Connection</div>
+    <div class="conn-grid">
+      <div>
+        <div class="field-label">Peer IP address</div>
+        <input id="peerInput" class="input" type="text" placeholder="e.g. 192.168.7.1 (auto-detected via USB)" />
+      </div>
+      <div>
+        <div class="field-label">Transfer port (0 = auto)</div>
+        <input id="portInput" class="input" type="number" placeholder="0" min="1" max="65535" value="0" />
+      </div>
+    </div>
+    <div class="conn-actions">
+      <button class="btn btn-secondary" onclick="applyConnection()">Apply</button>
+      <button class="btn btn-secondary" id="scanBtn" onclick="scanPeers()">
+        <span id="scanSpinner" class="spinner" style="display:none"></span>
+        Scan LAN
+      </button>
+      <button class="btn btn-secondary btn-sm" onclick="detectLocalIP()">Detect My IP</button>
+    </div>
+    <div id="scanResults" class="scan-results" style="display:none"></div>
+    <div id="connMsg" class="conn-msg"></div>
+  </div>
+
+  <!-- Role -->
+  <div class="card">
+    <div class="card-title">Role</div>
+    <div class="role-group">
+      <div class="role-btn" id="roleSender" onclick="setRole('sender')">
+        <span class="role-icon">📤</span>Sender
+      </div>
+      <div class="role-btn" id="roleReceiver" onclick="setRole('receiver')">
+        <span class="role-icon">📥</span>Receiver
+      </div>
+    </div>
+    <div id="dlDirRow" class="dl-dir-row" style="display:none">
+      <span id="dlDirLabel" class="dl-dir-label">~/Downloads/filetrans</span>
+      <button class="btn btn-secondary btn-sm" onclick="selectDir()">Change…</button>
+    </div>
+  </div>
+
+  <!-- File selector (sender only) -->
+  <div class="card" id="fileCard">
+    <div class="card-title">Files &amp; Folders — any type, any size</div>
+
+    <div
+      class="drop-zone"
+      id="dropZone"
+      onclick="document.getElementById('fileInput').click()"
+      ondragover="ev(event,'over')"
+      ondragleave="ev(event,'leave')"
+      ondrop="ev(event,'drop')"
+    >
+      <div class="drop-zone-icon">📂</div>
+      <div class="drop-zone-label">Drop files or folders here</div>
+      <div class="drop-zone-sub">or click to browse · any format · no size limit</div>
+    </div>
+    <!-- accept everything, allow multiple -->
+    <input type="file" id="fileInput" multiple onchange="onPick(event)" />
+
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-sm" onclick="openNative()">Native Dialog</button>
+      <button class="btn btn-secondary btn-sm" onclick="openNativeFolder()">Select Folder</button>
+      <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearFiles()">Clear All</button>
+    </div>
+
+    <div class="file-list" id="fileList">
+      <div class="empty-msg">No files selected</div>
+    </div>
+    <div id="fileCount" class="file-count"></div>
+  </div>
+
+  <!-- Progress (shown during/after transfer) -->
+  <div class="card full-width" id="progressCard" style="display:none">
+    <div class="card-title">Transfer Progress</div>
+    <div id="progressList" class="progress-list">
+      <div class="empty-msg">No active transfers</div>
+    </div>
+  </div>
+
+  <!-- Done banner -->
+  <div class="done-banner full-width" id="doneBanner" style="display:none">
+    <div class="done-icon">✅</div>
+    <div class="done-text">
+      <h3>Transfer Complete!</h3>
+      <p id="doneMsg">All files transferred successfully.</p>
+    </div>
+    <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="reset()">New Transfer</button>
+  </div>
+
+</main>
+
+<div class="action-bar">
+  <button class="btn btn-primary" id="startBtn" onclick="startTransfer()" disabled>
+    <span id="startSpinner" class="spinner" style="display:none"></span>
+    Start Transfer
+  </button>
+  <span id="actionMsg"></span>
+</div>
+
+<footer>
+  Created by Gaurav with <span class="heart">❤️</span>
+  &nbsp;·&nbsp; filetrans v0.1.0
+  &nbsp;·&nbsp; GPL-3.0
+  &nbsp;·&nbsp; No cloud. No Wi-Fi required.
+</footer>
+
+<script>
+// ─── State ───────────────────────────────────────────────
+let appState   = {};
+let fileItems  = [];   // {name, size, path, native}
+let currentRole = '';
+let ws = null;
+
+// ─── WebSocket event stream ───────────────────────────────
+function connectWS() {
+  ws = new WebSocket(`ws://${location.host}/api/events`);
+  ws.onmessage = e => { try { appState = JSON.parse(e.data); applyState(); } catch {} };
+  ws.onclose   = () => setTimeout(connectWS, 1500);
+}
+connectWS();
+
+// ─── Apply server state ───────────────────────────────────
+function applyState() {
+  const s = appState;
+
+  // Badge
+  const phaseMap = {
+    idle: ['Idle','badge-idle'], waiting_usb: ['Waiting USB','badge-usb'],
+    connecting: ['Connecting','badge-connecting'], connected: ['Connected','badge-connected'],
+    transfer: ['Transferring','badge-transfer'], done: ['Done','badge-done'],
+  };
+  const [lbl, cls] = phaseMap[s.phase] || ['Unknown','badge-idle'];
+  const badge = document.getElementById('statusBadge');
+  badge.textContent = lbl; badge.className = 'status-badge ' + cls;
+
+  // Port chip
+  if (s.port) document.getElementById('portChip').textContent = `transfer: :${s.port}`;
+
+  // Local IP chip
+  if (s.local_ip) {
+    document.getElementById('myIPChip').textContent = `local IP: ${s.local_ip}`;
+    if (!document.getElementById('peerInput').value && s.suggested_peer_ip)
+      document.getElementById('peerInput').value = s.suggested_peer_ip;
+  }
+
+  if (s.message) document.getElementById('connMsg').textContent = s.message;
+
+  if (s.role && s.role !== currentRole) applyRole(s.role, false);
+  if (s.download_dir) document.getElementById('dlDirLabel').textContent = s.download_dir;
+
+  // Start button
+  const canStart = (s.phase === 'connected' || s.phase === 'idle') &&
+    currentRole !== '' &&
+    (currentRole === 'receiver' || fileItems.length > 0);
+  document.getElementById('startBtn').disabled = !canStart;
+  document.getElementById('startSpinner').style.display =
+    s.phase === 'transfer' ? 'inline-block' : 'none';
+
+  // Progress
+  const files = s.files || {};
+  if (Object.keys(files).length > 0) {
+    document.getElementById('progressCard').style.display = '';
+    renderProgress(files);
+  }
+
+  // Done
+  if (s.session_done) {
+    document.getElementById('doneBanner').style.display = '';
+    document.getElementById('progressCard').style.display = 'none';
+    document.getElementById('startBtn').disabled = true;
+    const count = Object.keys(files).length;
+    document.getElementById('doneMsg').textContent =
+      `${count} file${count !== 1 ? 's' : ''} transferred successfully.`;
+  } else {
+    document.getElementById('doneBanner').style.display = 'none';
+  }
+}
+
+function renderProgress(files) {
+  const list = document.getElementById('progressList');
+  list.innerHTML = '';
+  for (const [, fp] of Object.entries(files)) {
+    const pct   = fp.size > 0 ? Math.min(100, (fp.transferred / fp.size * 100)) : 0;
+    const speed = fp.speed > 0 ? fmtBytes(fp.speed) + '/s' : '';
+    const eta   = fp.eta_sec > 0 ? ' · ETA ' + fmtETA(fp.eta_sec) : '';
+    const cls   = fp.error ? 'error-fill' : fp.done ? 'done' : '';
+    const el = document.createElement('div');
+    el.className = 'progress-item';
+    el.innerHTML = `
+      <div class="progress-header">
+        <span class="progress-name">${esc(fp.name)}</span>
+        <span class="progress-stats">${pct.toFixed(1)}%${speed ? ' · '+speed : ''}${eta}${fp.error?' ❌':fp.done?' ✅':''}</span>
+      </div>
+      <div class="bar-bg"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
+    `;
+    list.appendChild(el);
+  }
+}
+
+// ─── Role ─────────────────────────────────────────────────
+function setRole(role) {
+  applyRole(role, true);
+  fetch('/api/set-role', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})});
+}
+function applyRole(role, sync) {
+  currentRole = role;
+  document.getElementById('roleSender').classList.toggle('active', role === 'sender');
+  document.getElementById('roleReceiver').classList.toggle('active', role === 'receiver');
+  document.getElementById('fileCard').style.display  = role === 'receiver' ? 'none' : '';
+  document.getElementById('dlDirRow').style.display  = role === 'receiver' ? '' : 'none';
+  checkStartable();
+}
+
+// ─── Connection ────────────────────────────────────────────
+function applyConnection() {
+  const ip   = document.getElementById('peerInput').value.trim();
+  const port = parseInt(document.getElementById('portInput').value) || 0;
+  fetch('/api/set-peer', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({peer_ip: ip, port})
+  });
+}
+
+async function scanPeers() {
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  document.getElementById('scanSpinner').style.display = 'inline-block';
+  document.getElementById('scanResults').style.display = 'none';
+  try {
+    const res  = await fetch('/api/set-peer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scan:true})});
+    const data = await res.json();
+    const peers = data.peers || [];
+    const el = document.getElementById('scanResults');
+    el.style.display = '';
+    if (!peers.length) { el.innerHTML = '<div style="font-size:12px;color:var(--muted)">No peers found on LAN.</div>'; return; }
+    el.innerHTML = peers.map(p => `
+      <div class="scan-item">
+        <span>${esc(p)}</span>
+        <button class="btn btn-secondary btn-sm" onclick="usePeer('${esc(p)}')">Use</button>
+      </div>`).join('');
+  } finally {
+    btn.disabled = false;
+    document.getElementById('scanSpinner').style.display = 'none';
+  }
+}
+
+function usePeer(ip) {
+  document.getElementById('peerInput').value = ip;
+  document.getElementById('scanResults').style.display = 'none';
+  applyConnection();
+}
+
+function detectLocalIP() {
+  fetch('/api/state').then(r=>r.json()).then(s=>{
+    if (s.local_ip) document.getElementById('myIPChip').textContent = `local IP: ${s.local_ip}`;
+  });
+}
+
+// ─── File selection ────────────────────────────────────────
+function ev(e, type) {
+  e.preventDefault();
+  const dz = document.getElementById('dropZone');
+  if (type === 'over')  { dz.classList.add('drag-over'); return; }
+  if (type === 'leave') { dz.classList.remove('drag-over'); return; }
+  // drop
+  dz.classList.remove('drag-over');
+  uploadFileList([...e.dataTransfer.files]);
+}
+
+function onPick(e) {
+  uploadFileList([...e.target.files]);
+  e.target.value = '';
+}
+
+function uploadFileList(files) {
+  if (!files.length) return;
+  const form = new FormData();
+  files.forEach(f => form.append('files', f, f.name));
+  fetch('/api/upload', {method:'POST', body:form})
+    .then(r => r.json())
+    .then(data => {
+      (data.files||[]).forEach((path, i) => {
+        const f = files[i];
+        fileItems.push({ name: f ? f.name : path.split(/[\\/]/).pop(), size: f ? f.size : 0, path, native: false });
+      });
+      renderFiles();
+    });
+}
+
+function openNative() {
+  fetch('/api/select-files',{method:'POST'}).then(r=>r.json()).then(d=>{
+    (d.files||[]).forEach(p => fileItems.push({name:p.split(/[\\/]/).pop(), size:0, path:p, native:true}));
+    renderFiles();
+  });
+}
+
+function openNativeFolder() {
+  fetch('/api/select-folder',{method:'POST'}).then(r=>r.json()).then(d=>{
+    (d.files||[]).forEach(p => fileItems.push({name:p.split(/[\\/]/).pop(), size:0, path:p, native:true}));
+    renderFiles();
+  });
+}
+
+function removeFile(i) { fileItems.splice(i,1); renderFiles(); }
+
+function clearFiles() { fileItems = []; renderFiles(); fetch('/api/reset-files',{method:'POST'}); }
+
+function renderFiles() {
+  const el = document.getElementById('fileList');
+  if (!fileItems.length) {
+    el.innerHTML = '<div class="empty-msg">No files selected</div>';
+    document.getElementById('fileCount').textContent = '';
+    checkStartable();
+    return;
+  }
+  el.innerHTML = fileItems.map((f,i) => `
+    <div class="file-item">
+      <span class="file-icon">${icon(f.name)}</span>
+      <span class="file-name">${esc(f.name)}</span>
+      ${f.size ? `<span class="file-size">${fmtBytes(f.size)}</span>` : ''}
+      <span class="file-remove" onclick="removeFile(${i})" title="Remove">✕</span>
+    </div>`).join('');
+  const totalSize = fileItems.reduce((s,f)=>s+f.size,0);
+  document.getElementById('fileCount').textContent =
+    `${fileItems.length} item${fileItems.length!==1?'s':''}${totalSize?'  ·  '+fmtBytes(totalSize):''}`;
+  checkStartable();
+}
+
+function selectDir() {
+  fetch('/api/select-dir',{method:'POST'}).then(r=>r.json()).then(d=>{
+    if (d.dir) document.getElementById('dlDirLabel').textContent = d.dir;
+  });
+}
+
+// ─── Transfer ──────────────────────────────────────────────
+function checkStartable() {
+  const ok = currentRole !== '' && (currentRole==='receiver' || fileItems.length>0) &&
+    (appState.phase==='connected'||appState.phase==='idle'||!appState.phase);
+  document.getElementById('startBtn').disabled = !ok;
+}
+
+function startTransfer() {
+  document.getElementById('progressCard').style.display = '';
+  document.getElementById('doneBanner').style.display = 'none';
+  document.getElementById('progressList').innerHTML = '<div class="empty-msg">Connecting…</div>';
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('actionMsg').textContent = '';
+
+  // Send native file paths to server before starting.
+  const nativePaths = fileItems.filter(f=>f.native).map(f=>f.path);
+  const startFn = () => fetch('/api/start',{method:'POST'}).then(r=>r.json()).then(d=>{
+    if (d.error) { document.getElementById('actionMsg').textContent=d.error; document.getElementById('startBtn').disabled=false; }
+  });
+
+  if (nativePaths.length) {
+    fetch('/api/set-native-files',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({files:nativePaths})}).then(startFn);
+  } else {
+    startFn();
+  }
+}
+
+function reset() {
+  fileItems = [];
+  renderFiles();
+  fetch('/api/reset',{method:'POST'});
+}
+
+// ─── Helpers ───────────────────────────────────────────────
+function fmtBytes(b) {
+  if (b<1024) return b+' B';
+  if (b<1<<20) return (b/1024).toFixed(1)+' KB';
+  if (b<1<<30) return (b/(1<<20)).toFixed(1)+' MB';
+  return (b/(1<<30)).toFixed(2)+' GB';
+}
+function fmtETA(s) {
+  if (s<60) return Math.round(s)+'s';
+  return Math.floor(s/60)+'m'+String(Math.round(s%60)).padStart(2,'0')+'s';
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function icon(name) {
+  const ext = (name.split('.').pop()||'').toLowerCase();
+  const m = {pdf:'📄',jpg:'🖼️',jpeg:'🖼️',png:'🖼️',gif:'🖼️',svg:'🖼️',webp:'🖼️',bmp:'🖼️',
+    mp4:'🎬',mov:'🎬',avi:'🎬',mkv:'🎬',webm:'🎬',
+    mp3:'🎵',wav:'🎵',flac:'🎵',m4a:'🎵',aac:'🎵',ogg:'🎵',
+    zip:'🗜️',tar:'🗜️',gz:'🗜️',bz2:'🗜️',xz:'🗜️',rar:'🗜️','7z':'🗜️',zst:'🗜️',
+    txt:'📝',md:'📝',json:'📝',xml:'📝',csv:'📝',yaml:'📝',yml:'📝',toml:'📝',
+    js:'💻',ts:'💻',go:'💻',py:'💻',rs:'💻',c:'💻',cpp:'💻',java:'💻',swift:'💻',kt:'💻',
+    exe:'⚙️',dmg:'⚙️',deb:'⚙️',rpm:'⚙️',apk:'⚙️',ipa:'⚙️',
+    iso:'💿',img:'💿',
+  };
+  return m[ext] || '📄';
+}
+</script>
+</body>
+</html>

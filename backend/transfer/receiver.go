@@ -11,14 +11,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"time"
+
 	"filetrans/backend/handshake"
 	"filetrans/backend/protocol"
 	"filetrans/backend/ui"
 )
 
 // Receive handles the receiver-side session loop.
-// It processes FILE_OFFER messages until SESSION_DONE or an error.
-func Receive(conn *handshake.Conn, downloadDir string) error {
+// cb may be nil — terminal progress bar is used in that case.
+func Receive(conn *handshake.Conn, downloadDir string, cb *Callbacks) error {
 	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
 		return fmt.Errorf("create download dir: %w", err)
 	}
@@ -34,12 +36,15 @@ func Receive(conn *handshake.Conn, downloadDir string) error {
 			if err := json.Unmarshal(raw, &offer); err != nil {
 				return fmt.Errorf("decode FILE_OFFER: %w", err)
 			}
-			if err := receiveFile(conn, offer, downloadDir); err != nil {
+			if err := receiveFile(conn, offer, downloadDir, cb); err != nil {
 				return err
 			}
 
 		case protocol.MsgSessionDone:
-			ui.Successf("Transfer session complete.")
+			cb.sessionDone()
+			if cb == nil {
+				ui.Successf("Transfer session complete.")
+			}
 			return nil
 
 		case protocol.MsgError:
@@ -53,7 +58,7 @@ func Receive(conn *handshake.Conn, downloadDir string) error {
 	}
 }
 
-func receiveFile(conn *handshake.Conn, offer protocol.FileOfferMsg, downloadDir string) error {
+func receiveFile(conn *handshake.Conn, offer protocol.FileOfferMsg, downloadDir string, cb *Callbacks) error {
 	safeName := sanitizePath(offer.Name)
 	destPath := filepath.Join(downloadDir, safeName)
 	partPath := destPath + ".part"
@@ -110,9 +115,15 @@ func receiveFile(conn *handshake.Conn, offer protocol.FileOfferMsg, downloadDir 
 		}
 	}
 
-	prog := ui.NewProgress(offer.Name, offer.Size)
-	prog.Add(resumeFrom)
+	var prog *ui.Progress
+	if cb == nil {
+		prog = ui.NewProgress(offer.Name, offer.Size)
+		prog.Add(resumeFrom)
+	} else {
+		cb.fileStart(offer.Name, offer.Size)
+	}
 
+	startTime := time.Now()
 	received := resumeFrom
 	for received < offer.Size {
 		// Expect CHUNK_HEADER (JSON text frame).
@@ -157,7 +168,19 @@ func receiveFile(conn *handshake.Conn, offer protocol.FileOfferMsg, downloadDir 
 		}
 		h.Write(chunkData)
 		received += int64(header.Size)
-		prog.Add(int64(header.Size))
+		if prog != nil {
+			prog.Add(int64(header.Size))
+		} else {
+			elapsed := time.Since(startTime).Seconds()
+			var speed, etaSec float64
+			if elapsed > 0 {
+				speed = float64(received) / elapsed
+				if speed > 0 {
+					etaSec = float64(offer.Size-received) / speed
+				}
+			}
+			cb.progress(offer.Name, received, speed, etaSec)
+		}
 
 		// Acknowledge chunk.
 		if err := conn.SendJSON(protocol.ChunkAckMsg{
@@ -174,7 +197,9 @@ func receiveFile(conn *handshake.Conn, offer protocol.FileOfferMsg, downloadDir 
 		return fmt.Errorf("sync: %w", err)
 	}
 	f.Close()
-	prog.Done()
+	if prog != nil {
+		prog.Done()
+	}
 
 	// Read COMPLETE from sender.
 	msgType, raw, _, err := conn.ReadFrame()
@@ -211,7 +236,10 @@ func receiveFile(conn *handshake.Conn, offer protocol.FileOfferMsg, downloadDir 
 		return fmt.Errorf("rename to final destination: %w", err)
 	}
 
-	ui.Successf("Received: %s  →  %s", offer.Name, destPath)
+	cb.fileComplete(offer.Name)
+	if cb == nil {
+		ui.Successf("Received: %s  →  %s", offer.Name, destPath)
+	}
 	return nil
 }
 
